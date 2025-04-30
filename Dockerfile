@@ -1,30 +1,36 @@
+# ---- Build Stage ----
 FROM node:18-alpine AS builder
 
 WORKDIR /app
 
-# First copy both package.json and tsconfig.json
-COPY package.json tsconfig.json ./
+# Copy package files separately for better caching
+COPY package*.json tsconfig.json ./
 
-# Install dependencies
+# Install all dependencies (including dev)
 RUN npm install
 
-# Copy source files
+# Copy rest of the source code
 COPY . .
 
-# Build the project
+# Build TypeScript project
 RUN npm run build
 
+# ---- Production Stage ----
 FROM node:18-alpine AS release
 
 WORKDIR /app
 
-# Copy only what's needed from the builder stage
-COPY --from=builder /app/dist /app/dist
-COPY --from=builder /app/package.json /app/package.json
-
 ENV NODE_ENV=production
 
-# Install production dependencies only
+# Copy built code and package files from builder
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/package*.json ./
+
+# Install only production dependencies
 RUN npm install --omit=dev
 
-ENTRYPOINT ["node", "/app/dist/index.js"]
+# Expose port (optional but recommended)
+EXPOSE 3000
+
+# Start the application
+CMD ["node", "dist/index.js"]
