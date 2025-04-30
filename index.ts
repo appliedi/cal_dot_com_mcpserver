@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import express from "express";
+import express, { Request, Response } from "express";
 import bodyParser from "body-parser";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import {
@@ -10,7 +10,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import axios from "axios";
 
-// -- Tools Definition --
+// -- Tool Definitions --
 
 const ADD_APPOINTMENT_TOOL: Tool = {
   name: "calcom_add_appointment",
@@ -70,7 +70,7 @@ const LIST_APPOINTMENTS_TOOL: Tool = {
   }
 };
 
-// -- Server & API Setup --
+// -- Server Setup --
 
 const server = new Server(
   { name: "example-servers/calcom-calendar", version: "0.1.0" },
@@ -131,7 +131,7 @@ function isListArgs(args: any): args is any {
   return args && "startDate" in args && "endDate" in args;
 }
 
-// -- Cal.com Actions --
+// -- Cal.com Logic --
 
 async function addAppointment(args: any) {
   checkRateLimit();
@@ -176,7 +176,7 @@ async function listAppointments(args: any) {
   return res.data.length === 0 ? "No appointments found." : JSON.stringify(res.data, null, 2);
 }
 
-// -- Register Handlers --
+// -- Register Tool Handlers --
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: [ADD_APPOINTMENT_TOOL, UPDATE_APPOINTMENT_TOOL, DELETE_APPOINTMENT_TOOL, LIST_APPOINTMENTS_TOOL]
@@ -212,22 +212,36 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   }
 });
 
-// -- Start Express HTTP Server --
+// -- Start Express Server --
 
 const app = express();
 app.use(bodyParser.json());
 
-app.post("/list-tools", async (req, res) => {
-  const tools = await server.handleListTools({ params: {} });
-  res.json(tools);
+app.post("/list-tools", async (req: Request, res: Response) => {
+  try {
+    const tools = await server.dispatch({
+      method: "get_tools",
+      params: {}
+    });
+    res.json(tools);
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
 });
 
-app.post("/call-tool", async (req, res) => {
-  const result = await server.handleCallTool(req.body);
-  res.json(result);
+app.post("/call-tool", async (req: Request, res: Response) => {
+  try {
+    const result = await server.dispatch({
+      method: "call_tool",
+      params: req.body.params
+    });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
 });
 
 const port = process.env.PORT || 3800;
 app.listen(port, () => {
-  console.log(`📅 Cal.com MCP HTTP Server running on port ${port}`);
+  console.log(`✅ Cal.com MCP HTTP Server running on port ${port}`);
 });
